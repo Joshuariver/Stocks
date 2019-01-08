@@ -1,0 +1,131 @@
+# 기술적 분석
+#
+# MACD 선 = 단기지수이동평균 - 장기지수이동평균 
+# Signal 선 = n 일의 MACD 지수이동평균Signal 선 = n 일의 MACD 지수이동평균
+# 매매 : MACD선이 Signal선을 상향 돌파하면 매수, 하향 돌파하면 매도
+#
+
+rm(list=ls())
+setwd("D:/R lab/03.Cases/Stock analysis")
+
+
+library(quantmod)
+library(PerformanceAnalytics)
+
+
+# 1) KOSPI 가격을 받아옵니다.
+kospi<-getSymbols('^KS11', src='yahoo', auto.assign = FALSE)
+
+# 2) 종가만 따로 가져옵니다.
+price<-kospi[,4]
+
+# 3) MACD 차트를 그려 보겠습니다.
+chartSeries(price, TA="addMACD()")
+
+# 4) macd 를 저장해 볼까요?
+
+macd = MACD(price, nFast=15, nSlow=30, nSig=9, maType=SMA)
+  
+#  단기 이동평균 15일, 장기 이동평균 30일, 시그널 선 9일 이동평균을 사용했습니다.
+# (이유를 설명하지 못하면 Datamining Bias 지만, 저희는 실습이 목적이므로 Pass)
+  
+#  5) 매매시그널을 만들어 볼까요?
+
+signal = Lag(ifelse(macd$macd>=macd$signal, 1,0))
+
+#  1일 lag를 시켜서 Lookhead bias를 제거해야 합니다. (매매시그널을 확인하고 매매해야죠)
+#  macd 라인이 signal 라인을 상향돌파하면 매수, 아니면 그냥 매매안함 이게 전략입니다.
+
+
+
+# 머신러닝을 이용한 기술분석 (머신러닝 중 Support Vector Machine)
+
+
+require(quantmod)
+require(PerformanceAnalytics)
+require(e1071)
+
+
+#KOSPI 지수 데이터를 가져옵니다.
+kospi<-getSymbols('^KS11', src='yahoo', auto.assign = FALSE)
+
+
+# 당일 시가로 투자하고 종가로 청산 했을 때 수익률을 계산합니다.
+ret<-(kospi[,4]-kospi[,1])/kospi[,1]
+# 기간은 2007년 1월 1일 부터 2017년 1월 10일 입니다.
+ret = ret['2008-04-10/2018-04-30'] 
+
+# 출력변수를 숫자 그대로 사용하지 않고 올랐는지(1) 떨어졌는지 (0) 으로 바꿨습니다.
+y=ret
+y[y>0.000]=1
+y[y<=0.000]=0
+
+# 입력변수 : 지난 최근 과거 5일간 시가매수 종가매도 수익률
+# Lookahead Bias 제거해 줘야죠? 미래를 예측하는데 미래 데이터를 쓰면 안됩니다.(당연! :-D)
+x = Lag(y, k=1)
+for(i in 2:5)
+{
+  x = cbind(x,Lag(y,k=i))  
+}
+# 데이터를 결합한 다음 결측값인 NA를 제거해 줍니다.
+data = cbind(y, x,ret)
+data<- na.omit(data)
+
+# 다시 입력변수와 예측변수로 분리시킵니다. NA를 제거했으니 다시 나눠줘야죠?
+inputs <- data[,2:5]
+outputs <- data[,c(1,7)]
+
+# 전체 입력 데이터가 몇개인지 확인. (나중에 For 문을 돌릴때 필요하니까요.)
+datacnt = length(outputs[,1])
+
+# 예측결과를 담기위해 필요합니다.
+outsvm = c()
+
+# 최근 30개의 데이터를 사용해서 학습하겠습니다.
+n_train = 30
+
+for(i in n_train : (datacnt-1))
+{
+  train = c((i-n_train+1):i)
+  # SVM을 이용해서 학습을 합니다. 커널은 가장 많이 사용하는 linear 함수를 사용하겠습니다.
+  fitsvm<- svm(inputs[train,],outputs[train,1], kernel='linear')
+  # 내일 자 입력 데이터를 넣고 예측을 합니다.
+  predsvm <- predict(fitsvm, inputs[i+1,])
+  # 실제로 잘 맞췄는지 평가해 보기 위해 실현된 수익률도 한번 넣어주겠습니다. 
+  actual <- outputs[i+1,2]
+  # 결과를 저장해 둡니다.  
+  outsvm = rbind(outsvm, c(date=rownames(as.data.frame(inputs)[i+1,]),pred=predsvm,act=actual))
+  print(paste(sep="", as.character((i-n_train+1)/(datacnt-n_train-1)*100),"% done"))
+}
+
+
+# 전략 1 : 오를 것 같으면 매수 아니면 아무것도 안 함 전략 테스트 
+simData=as.matrix(outsvm,ncol=3)
+# 50% 이상이면 오를 것으로 예상하는 것이니까 매수 아니면 매매X
+simData[,2][as.double(simData[,2])>=0.5]=1 
+simData[,2][as.double(simData[,2])<0.5]=0
+simData[,3] = as.double(simData[,3])
+
+# 평가 해볼까요? 수익률과 시그널을 곱해줍니다.
+ret = as.numeric(simData[,2])*as.numeric(simData[,3])
+ret = as.data.frame(ret)
+rownames(ret) = simData[,1]
+# 누적수익률을 구하면
+portCumRet = exp(cumsum(ret))
+chartSeries(portCumRet)
+
+
+# 전략 2 : 떨어질 것 같으면 매도(인버스 매수) 아니면 아무것도 안 함 전략을 테스트  
+simData=as.matrix(outsvm,ncol=3) 
+# 50% 이하면 떨어질 것으로 예상하는 거니까 매도(인버스매수) 아니면 매매X
+simData[,2][as.double(simData[,2])<0.5]=-1
+simData[,2][as.double(simData[,2])>=0.5]=0
+simData[,3] = as.double(simData[,3])
+
+ret = as.numeric(simData[,2])*as.numeric(simData[,3]) 
+ret = as.data.frame(ret) 
+rownames(ret) = simData[,1] 
+# 누적수익률을 구하면
+portCumRet = exp(cumsum(ret)) 
+chartSeries(portCumRet) 
+
