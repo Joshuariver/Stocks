@@ -1,0 +1,44 @@
+# TFX
+
+rm(list=ls())
+
+library(TFX)
+QueryTrueFX()
+
+
+krw <- ConnectTrueFX("USD/KRW,EUR/KRW,GBP/KRW,AUD/KRW,CAD/KRW,COP/KRW", 
+                     username="joshuariver", password="dH6Jv4ph5F")
+QueryTrueFX(krw)
+
+
+QueryTrueFX(ConnectTrueFX("", "joshuariver", "dH6Jv4ph5F", snapshot=TRUE))
+
+
+# this session gets only incremental updates
+up <- ConnectTrueFX("", "JSTrader", "Ou812", snapshot=FALSE) 
+# this one is disconnected after a request and will have to be reconnected
+# for a subsequent request.
+ss <- ConnectTrueFX("", "JSTrader", "Ou812", snapshot=TRUE)
+
+# make 20 requests and count the rows of each response
+sapply(1:20, function(i) nrow(QueryTrueFX(up)))
+
+
+isActive(ss)
+
+isActive(up)
+
+
+eurss <- ConnectTrueFX("EUR/USD", "JSTrader", "Ou812", snapshot = TRUE)
+
+QueryTrueFX(eurss, reconnect = FALSE)  #after the request, eurss will be disconnected
+
+QueryTrueFX(eurss, reconnect = FALSE)  # Error; no longer connected
+
+Reconnect(eurss)
+QueryTrueFX(eurss, reconnect = FALSE)  #disconnected after request
+
+isActive(eurss)
+
+QueryTrueFX(eurss)
+
