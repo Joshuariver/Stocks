@@ -1,4 +1,5 @@
 # 재무데이터 수집
+# Google Finance 에서 2018년 이후 더 이상 주가정보를 제공하지 않아 작동하지 않는 코드임.
 
 rm(list=ls())
 setwd("~/R/Stock Analysis/Stock analysis")
