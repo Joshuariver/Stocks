@@ -7,7 +7,7 @@ QueryTrueFX()
 
 
 krw <- ConnectTrueFX("USD/KRW,EUR/KRW,GBP/KRW,AUD/KRW,CAD/KRW,COP/KRW", 
-                     username="joshuariver", password="dH6Jv4ph5F")
+                     username="xxxxxx", password="XXXXX")
 QueryTrueFX(krw)
 
 
